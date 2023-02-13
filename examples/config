@@ -1,0 +1,74 @@
+# Upon startup, all displays are set to this brightness level. Default 4.
+#
+# default_level = 4
+
+# Default socket is $XDG_RUNTIME_DIR/backlight
+#
+# socket_path = /path/to/server/socket
+
+# The first display is special: When toggling all monitors on/off, the state
+# of this monitor is the one all others follow. Currently, this monitor must
+# implement the sysfs flavor of onoff_control.
+#
+[[display]]
+
+# Name is required
+#
+name = "laptop"
+
+onoff_control = "sysfs:/sys/class/drm/card0-eDP-1/intel_backlight/bl_power"
+brightness_control = "sysfs:/sys/class/drm/card0-eDP-1/intel_backlight/brightness"
+
+# If gamma is not specified, backlightd assumes a linear brightness response.
+# If it's not linear, and you don't know for sure what it is, try 2.2
+#
+gamma = 2.2
+
+# Absolute maximum brightness value, typically 100 or specified in 
+# /sys/../some_backlight/max_brightness
+#
+max = 120000
+
+# The lowest brightness value for this display
+# 
+min = 750
+
+# Reference brightness range: The range of perceptual brightness that can be 
+# represented by every display.
+#
+# The brightness at the bottom the range is defined by the display that is 
+# brighter than the others when all are set to their lowest setting.
+# The top of the range is defined by the display that is dimmest when set to
+# its highest possible brightness.
+#
+# The ref_max and ref_min parameters specify, for this monitor, the brightness
+# values corresponding to the top and bottom of the reference brightness range.
+# If ref_max and ref_min are not specified, they are equal to max and min.
+#
+# When ref_max, ref_min, and gamma are correctly configured for each display,
+# all displays will have approximately equal brightness at every brightness
+# level between 0 (all displays at their ref_max values) and 9 (all displays 
+# at their ref_min values).
+# 
+# This example monitor has a max value of 120000 and a ref_max of 90000, which
+# means that it can achieve a higher brightness than the other display in this
+# config.
+#
+ref_max = 90000
+
+# Second display
+#
+[[display]]
+name = "desktop"
+# onoff control via sway. Use "swaymsg -t get_outputs" to find the name of the
+# display. Currently only sysfs and swaydpms may be used for onoff_control.
+onoff_control = "swaydpms:DP-3"
+# brightness control via ddcutil. Use "ddcutil detect" to find the display
+# number to use here. Currently only sysfs and ddcutil may be used here.
+brightness_control = "ddcutil:1"
+
+# Gamma 1.0 is a linear response, and backlightd assumes a brightness value
+# range # of 0..=100 in this case unless otherwise specified with max and min.
+# This is typical of brightness controlled via ddcutil.
+#
+gamma = 1.0
