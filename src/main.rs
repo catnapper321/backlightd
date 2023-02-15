@@ -16,6 +16,7 @@ use std::{
     str::FromStr,
     time::Duration,
 };
+use log::{trace, debug, info, warn, error};
 
 use backlightd::BacklightCommand;
 use clamped::*;
@@ -88,7 +89,10 @@ impl Display {
             Some(ControlMethod::SysFS(ref p)) => fs::write(p, v.to_string()),
             Some(ControlMethod::DDCUtil(display)) => ddcutil_set_brightness(display, v),
             // cannot use sway to set brightness
-            _ => Ok(()),
+            _ => {
+                error!("Cannot use swaydpms: to set brightness");
+                Ok(())
+            },
         }
     }
     pub fn set_brightness_level(&mut self, level: i8) -> Result<ClampedValue<usize>, io::Error> {
@@ -176,9 +180,11 @@ fn establish_socket(path: impl AsRef<Path>) -> Anything<UnixListener> {
     let path = path.as_ref();
     let exists = path.try_exists()?;
     if exists {
+        warn!("Removing existing socket at {path:?}");
         // try to remove the socket, if it already exists
         let _ = std::fs::remove_file(path)?;
     }
+    trace!("Binding socket");
     let listener = UnixListener::bind(path)?;
     Ok(listener)
 }
@@ -200,20 +206,38 @@ fn run(listener: UnixListener, mut config: config::Config) -> Anything<()> {
 }
 
 fn main() -> Anything<()> {
+    // parse command line options
     let cli_options = options::CliOptions::new();
+
+    // read config file
     if let Some(config_path) = cli_options.config_file {
         if ! matches!(config_path.try_exists(), Ok(true)) {
             return Err(Box::new(Error::BadPath(config_path)));
         }
     }
     let mut config = get_config()?;
+
+    // set up logging - assume systemd/journald is reading stderr
+    let mut logging = env_logger::Builder::new();
+    logging.filter_level(config.log_level);
+    if ! config.log_timestamp {
+        logging.format_timestamp(None);
+    }
+    logging.init();
+    info!("Logging enabled. Level is {:?}", config.log_level);
+
+    // set up the socket
     let socket_path: PathBuf = if let Some(config_path) = cli_options.socket_path {
+        trace!("Socket path from config file: {config_path:?}");
         config_path
     } else {
+        trace!("Attempting to use XDG_RUNTIME_DIR to construct socket path");
         let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")?;
         PathBuf::from(xdg_runtime_dir).join("backlight")
     };
-    let listener = establish_socket(socket_path)?;
+    let listener = establish_socket(&socket_path)?;
+    debug!("Made socket at {socket_path:?}");
+
     // set default brightness
     let default_level = config.default_level;
     for d in config.mut_displays() {

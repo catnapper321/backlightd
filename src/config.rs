@@ -1,8 +1,11 @@
 use crate::{Anything, BrightnessScale, ControlMethod, Display, Error, ScaleBuilder};
 use std::path::{Path, PathBuf};
+use log::LevelFilter;
 use toml::*;
 
 pub struct Config {
+    pub log_level: LevelFilter,
+    pub log_timestamp: bool,
     pub steps_in_reference_range: f32,
     pub default_level: i8,
     pub displays: Vec<Display>,
@@ -26,6 +29,7 @@ mod parser {
     };
 
     use crate::{scale::ScaleKind, ControlMethod};
+    use log::LevelFilter;
     type ParseResult<'a, T> = nom::IResult<&'a str, T>;
 
     fn number_p<T: std::str::FromStr>(input: &str) -> ParseResult<T> {
@@ -50,6 +54,23 @@ mod parser {
             Ok((_, v)) => Ok(v),
             Err(_) => Err(Error::BadConfiguration("Could not parse control method")),
         }
+    }
+    pub fn loglevel(input: &str) -> ParseResult<LevelFilter> {
+        let off_p = map(tag_no_case("off"), |_| LevelFilter::Off);
+        let error_p = map(tag_no_case("error"), |_| LevelFilter::Error);
+        let warn_p = map(tag_no_case("warn"), |_| LevelFilter::Warn);
+        let info_p = map(tag_no_case("info"), |_| LevelFilter::Info);
+        let debug_p = map(tag_no_case("debug"), |_| LevelFilter::Debug);
+        let trace_p = map(tag_no_case("trace"), |_| LevelFilter::Trace);
+        alt((
+                off_p,
+                error_p,
+                warn_p,
+                info_p,
+                debug_p,
+                trace_p,
+            ))(input)
+        
     }
 
     #[cfg(test)]
@@ -155,6 +176,13 @@ fn parse_config_document(document: impl AsRef<str>) -> Result<Config, Error> {
         .as_ref()
         .parse::<Table>()
         .map_err(|_| Error::BadConfiguration("Could not parse the configuration document"))?;
+    let log_level = doc.get("log_level")
+        .and_then(|v| v.as_str())
+        .and_then(|v| loglevel(v).map(|(_, x)| x).ok())
+        .unwrap_or(LevelFilter::Off);
+    let log_timestamp = doc.get("log_timestamp")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let display_config = doc.get("display").ok_or(Error::BadConfiguration(
         "Could not find a display array in the configuration document",
     ))?;
@@ -184,6 +212,8 @@ fn parse_config_document(document: impl AsRef<str>) -> Result<Config, Error> {
         .and_then(|v| v.as_str())
         .map(|v| PathBuf::from(v));
     Ok(Config {
+        log_level,
+        log_timestamp,
         steps_in_reference_range: steps,
         default_level,
         displays,
