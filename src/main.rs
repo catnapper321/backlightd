@@ -85,40 +85,52 @@ impl Display {
         self.scale.get_brightness()
     }
     fn set_brightness(&mut self, v: usize) -> Result<(), io::Error> {
+        debug!("Setting brightness to {v}");
         match self.brightness_control {
             Some(ControlMethod::SysFS(ref p)) => fs::write(p, v.to_string()),
             Some(ControlMethod::DDCUtil(display)) => ddcutil_set_brightness(display, v),
             // cannot use sway to set brightness
             _ => {
-                error!("Cannot use swaydpms: to set brightness");
+                error!("Cannot use swaydpms to set brightness for {:?}", self.name);
                 Ok(())
             },
         }
     }
     pub fn set_brightness_level(&mut self, level: i8) -> Result<ClampedValue<usize>, io::Error> {
+        debug!("Setting brightness on {:?} to {level}", self.name);
         let v = self.scale.set_level(level);
         self.set_brightness(*v).map(|_| v)
     }
     pub fn brightness_up(&mut self) -> Result<ClampedValue<usize>, io::Error> {
+        debug!("Brightness up on {:?}", self.name);
         let v = self.scale.up();
         self.set_brightness(*v).map(|_| v)
     }
     pub fn brightness_down(&mut self) -> Result<ClampedValue<usize>, io::Error> {
+        debug!("Brightness down on {:?}", self.name);
         let v = self.scale.down();
         self.set_brightness(*v).map(|_| v)
     }
     pub fn turn_on(&mut self) -> Result<(), io::Error> {
+        debug!("Turning on {:?}", self.name);
         match self.dpms_control {
             Some(ControlMethod::SysFS(ref p)) => fs::write(p, "0"),
             Some(ControlMethod::SwayDPMS(ref name)) => dpms_sway_turn_on(name),
-            _ => Ok(()),
+            _ => {
+                error!("Cannot use ddcutil to turn on {:?}", self.name);
+                Ok(())
+            },
         }
     }
     pub fn turn_off(&mut self) -> Result<(), io::Error> {
+        debug!("Turning off {:?}", self.name);
         match self.dpms_control {
             Some(ControlMethod::SysFS(ref p)) => fs::write(p, "4"),
             Some(ControlMethod::SwayDPMS(ref name)) => dpms_sway_turn_off(name),
-            _ => Ok(()),
+            _ => {
+                error!("Cannot use ddcutil to turn off {:?}", self.name);
+                Ok(())
+            },
         }
     }
 }
